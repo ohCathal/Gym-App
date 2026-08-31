@@ -1,4 +1,3 @@
-//
 //  GymApp1App.swift
 //  GymApp1
 //
@@ -12,7 +11,14 @@ import SwiftData
 struct GymApp1App: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            FoodEntry.self,
+            MacroGoals.self,
+            WorkoutTemplate.self,
+            WorkoutLog.self,
+            ExerciseLog.self,
+            SetLog.self,
+            WeightEntry.self,
+            ProgressPhoto.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -25,7 +31,7 @@ struct GymApp1App: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
         }
         .modelContainer(sharedModelContainer)
     }

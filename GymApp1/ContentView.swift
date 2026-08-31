@@ -1,80 +1,412 @@
-//
-//  ContentView.swift
-//  GymApp1
-//
-//  Created by Cathal Davitt on 26/06/2026.
-//
-
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @Query private var goalsList: [MacroGoals]
+    @Query(sort: \FoodEntry.timestamp, order: .reverse) private var allEntries: [FoodEntry]
+
+    @State private var showingSearch = false
+    @State private var editingEntry: FoodEntry?
+
+    private var goals: MacroGoals {
+        goalsList.first ?? MacroGoals()
+    }
+
+    private var todayEntries: [FoodEntry] {
+        allEntries.filter { Calendar.current.isDateInToday($0.timestamp) }
+    }
+
+    private var totalCalories: Double { todayEntries.reduce(0) { $0 + $1.calories } }
+    private var totalProtein: Double { todayEntries.reduce(0) { $0 + $1.protein } }
+    private var totalCarbs: Double { todayEntries.reduce(0) { $0 + $1.carbs } }
+    private var totalFat: Double { todayEntries.reduce(0) { $0 + $1.fat } }
+
+    private var greeting: String {
+        let hour = Calendar.current.component(.hour, from: .now)
+        switch hour {
+        case 0..<12: return "Good morning"
+        case 12..<17: return "Good afternoon"
+        default: return "Good evening"
+        }
+    }
+
+    private var todayDateString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMM d"
+        return formatter.string(from: .now)
+    }
+
+    // MARK: - Recommendations
+
+    private var recommendedEntries: [FoodEntry] {
+        let calendar = Calendar.current
+        let currentHour = calendar.component(.hour, from: .now)
+        let loggedTodayNames = Set(todayEntries.map { $0.name })
+
+        let pastEntries = allEntries.filter { !calendar.isDateInToday($0.timestamp) }
+
+        // Prefer foods logged around this same time of day, on other days
+        let timeMatched = pastEntries.filter { entry in
+            let hour = calendar.component(.hour, from: entry.timestamp)
+            return abs(hour - currentHour) <= 2
+        }
+
+        let source = timeMatched.isEmpty ? pastEntries : timeMatched
+        let grouped = Dictionary(grouping: source, by: { $0.name })
+
+        let ranked = grouped
+            .sorted { $0.value.count > $1.value.count }
+            .compactMap { $0.value.max(by: { $0.timestamp < $1.timestamp }) }
+            .filter { !loggedTodayNames.contains($0.name) }
+
+        return Array(ranked.prefix(6))
+    }
 
     var body: some View {
-        NavigationViewWrapper {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        NavigationStack {
+            ZStack {
+                backgroundLayer
+
+                ScrollView {
+                    VStack(spacing: 24) {
+                        header
+
+                        gaugeCard
+
+                        if todayEntries.isEmpty {
+                            emptyState
+                        } else {
+                            logSection
+                        }
+
+                        if !recommendedEntries.isEmpty {
+                            recommendedSection
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                    .padding(.bottom, 110)
+                }
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .sheet(isPresented: $showingSearch) {
+                FoodSearchView()
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+            }
+            .sheet(item: $editingEntry) { entry in
+                NavigationStack {
+                    ManualFoodEntryView(existingEntry: entry, onSaved: { editingEntry = nil })
+                }
+            }
+            .onAppear {
+                if goalsList.isEmpty {
+                    modelContext.insert(MacroGoals())
+                }
+            }
+        }
+    }
+
+    // MARK: - Background
+
+    private var backgroundLayer: some View {
+        ZStack {
+            Color.bgPrimary.ignoresSafeArea()
+
+            Circle()
+                .fill(Color.accentProtein.opacity(0.18))
+                .frame(width: 280, height: 280)
+                .blur(radius: 90)
+                .offset(x: -120, y: -180)
+
+            Circle()
+                .fill(Color.accentFat.opacity(0.15))
+                .frame(width: 260, height: 260)
+                .blur(radius: 90)
+                .offset(x: 140, y: -100)
+
+            Circle()
+                .fill(Color.accentPrimary.opacity(0.12))
+                .frame(width: 300, height: 300)
+                .blur(radius: 100)
+                .offset(x: -60, y: 300)
+        }
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(greeting.uppercased())
+                .font(.system(size: 11, weight: .semibold))
+                .tracking(1.2)
+                .foregroundStyle(Color.accentPrimary)
+            Text(todayDateString)
+                .font(.system(size: 30, weight: .semibold, design: .serif))
+                .foregroundStyle(Color.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 12)
+    }
+
+    // MARK: - Gauge Card
+
+    private var gaugeCard: some View {
+        VStack(spacing: 22) {
+            Button {
+                showingSearch = true
+            } label: {
+                ZStack {
+                    MacroGauge(
+                        overallProgress: goals.calorieGoal > 0 ? totalCalories / goals.calorieGoal : 0,
+                        proteinCals: totalProtein * 4,
+                        carbsCals: totalCarbs * 4,
+                        fatCals: totalFat * 9,
+                        lineWidth: 22
+                    )
+                    .frame(width: 240, height: 240)
+
+                    VStack(spacing: 4) {
+                        Text("\(Int(totalCalories))")
+                            .font(.system(size: 46, weight: .semibold, design: .serif))
+                            .foregroundStyle(Color.textPrimary)
+                        Text("of \(Int(goals.calorieGoal)) kcal")
+                            .font(.system(size: 13, design: .monospaced))
+                            .foregroundStyle(Color.textSecondary)
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 11))
+                            Text("TAP TO LOG")
+                                .font(.system(size: 10, weight: .semibold))
+                                .tracking(1.2)
+                        }
+                        .foregroundStyle(Color.accentPrimary)
+                        .padding(.top, 6)
                     }
                 }
-                .onDelete(perform: deleteItems)
             }
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-#endif
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+            .buttonStyle(.plain)
+            .padding(.top, 8)
+
+            HStack(spacing: 10) {
+                macroPill(icon: "bolt.fill", title: "Protein", value: totalProtein, goal: goals.proteinGoal, color: .accentProtein)
+                macroPill(icon: "leaf.fill", title: "Carbs", value: totalCarbs, goal: goals.carbGoal, color: .accentCarbs)
+                macroPill(icon: "drop.fill", title: "Fat", value: totalFat, goal: goals.fatGoal, color: .accentFat)
+            }
+        }
+        .padding(.bottom, 20)
+        .padding(.top, 4)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 28)
+                .fill(Color.bgSurface.opacity(0.6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
+        )
+    }
+
+    private func macroPill(icon: String, title: String, value: Double, goal: Double, color: Color) -> some View {
+        let progress = min(max(goal > 0 ? value / goal : 0, 0), 1)
+        return VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundStyle(color)
+            Text("\(Int(value))g")
+                .font(.system(size: 16, weight: .semibold, design: .monospaced))
+                .foregroundStyle(Color.textPrimary)
+            Text(title.uppercased())
+                .font(.system(size: 9, weight: .semibold))
+                .tracking(0.6)
+                .foregroundStyle(Color.textSecondary)
+            Capsule()
+                .fill(Color.bgPrimary)
+                .frame(height: 4)
+                .overlay(alignment: .leading) {
+                    GeometryReader { geo in
+                        Capsule()
+                            .fill(color)
+                            .frame(width: geo.size.width * progress)
                     }
                 }
+                .frame(height: 4)
+        }
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(color.opacity(0.1))
+        )
+    }
+
+    // MARK: - Empty State
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "fork.knife.circle")
+                .font(.system(size: 34))
+                .foregroundStyle(Color.textSecondary.opacity(0.5))
+            Text("Nothing logged yet")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(Color.textPrimary)
+            Text("Tap the ring above to log your first meal today")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+    }
+
+    // MARK: - Log Section
+
+    private var logSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("TODAY'S LOG")
+                .font(.system(size: 12, weight: .semibold))
+                .tracking(0.8)
+                .foregroundStyle(Color.textSecondary)
+                .padding(.leading, 4)
+
+            VStack(spacing: 10) {
+                ForEach(todayEntries) { entry in
+                    logRow(entry)
+                }
             }
         }
     }
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
+    private func logRow(_ entry: FoodEntry) -> some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(Color.accentPrimary.opacity(0.15))
+                    .frame(width: 44, height: 44)
+                Image(systemName: "fork.knife")
+                    .font(.system(size: 16))
+                    .foregroundStyle(Color.accentPrimary)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(entry.name)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Color.textPrimary)
+                    .lineLimit(2)
+                Text("\(Int(entry.calories)) kcal · P \(Int(entry.protein))g · C \(Int(entry.carbs))g · F \(Int(entry.fat))g")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Color.textSecondary)
+            }
+
+            Spacer()
+
+            HStack(spacing: 6) {
+                Button {
+                    editingEntry = entry
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.accentPrimary)
+                        .frame(width: 30, height: 30)
+                        .background(Circle().fill(Color.accentPrimary.opacity(0.12)))
+                }
+
+                Button {
+                    modelContext.delete(entry)
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.red)
+                        .frame(width: 30, height: 30)
+                        .background(Circle().fill(Color.red.opacity(0.12)))
+                }
+            }
         }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.bgSurface.opacity(0.7))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                )
+        )
     }
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+    // MARK: - Recommended Section
+
+    private var recommendedSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("SUGGESTED FOR NOW")
+                .font(.system(size: 12, weight: .semibold))
+                .tracking(0.8)
+                .foregroundStyle(Color.textSecondary)
+                .padding(.leading, 4)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(recommendedEntries) { entry in
+                        recommendedCard(entry)
+                    }
+                }
+                .padding(.horizontal, 2)
+                .padding(.bottom, 4)
             }
         }
     }
-}
 
-fileprivate struct NavigationViewWrapper<Content: View>: View {
-    let content: () -> Content
-
-    var body: some View {
-#if os(macOS)
-        NavigationSplitView {
-            content()
-        } detail: {
-            Text("Select an item")
+    private func recommendedCard(_ entry: FoodEntry) -> some View {
+        Button {
+            quickAdd(entry)
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.accentPrimary)
+                    Spacer()
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color.accentPrimary)
+                }
+                Text(entry.name)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Color.textPrimary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Text("\(Int(entry.calories)) kcal")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Color.textSecondary)
+            }
+            .padding(12)
+            .frame(width: 140, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.bgSurface.opacity(0.7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                    )
+            )
         }
-#else
-        content()
-#endif
+        .buttonStyle(.plain)
+    }
+
+    private func quickAdd(_ source: FoodEntry) {
+        let entry = FoodEntry(
+            name: source.name,
+            calories: source.calories,
+            protein: source.protein,
+            carbs: source.carbs,
+            fat: source.fat
+        )
+        modelContext.insert(entry)
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(for: [FoodEntry.self, MacroGoals.self], inMemory: true)
 }
