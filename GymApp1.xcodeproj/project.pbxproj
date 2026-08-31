@@ -10,22 +10,9 @@
 		DBF2B8C22FED8F5700D4EF15 /* GymApp1.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GymApp1.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		DB1C11F13045B32500FC9B2B /* Exceptions for "GymApp1" folder in "GymApp1" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Untitled.swift,
-			);
-			target = DBF2B8C12FED8F5700D4EF15 /* GymApp1 */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		DBF2B8C42FED8F5700D4EF15 /* GymApp1 */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				DB1C11F13045B32500FC9B2B /* Exceptions for "GymApp1" folder in "GymApp1" target */,
-			);
 			path = GymApp1;
 			sourceTree = "<group>";
 		};

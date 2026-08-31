@@ -12,6 +12,7 @@ final class HealthKitManager {
 
     var latestHeightCm: Double?
     var ageYears: Int?
+    var biologicalSex: HKBiologicalSex?
 
     private var stepType: HKQuantityType { HKQuantityType(.stepCount) }
     private var energyType: HKQuantityType { HKQuantityType(.activeEnergyBurned) }
@@ -26,6 +27,9 @@ final class HealthKitManager {
         var readTypes: Set<HKObjectType> = [stepType, energyType, weightType, heightType]
         if let dobType = HKObjectType.characteristicType(forIdentifier: .dateOfBirth) {
             readTypes.insert(dobType)
+        }
+        if let sexType = HKObjectType.characteristicType(forIdentifier: .biologicalSex) {
+            readTypes.insert(sexType)
         }
         do {
             try await store.requestAuthorization(toShare: [], read: readTypes)
@@ -51,6 +55,10 @@ final class HealthKitManager {
         if let dob = try? store.dateOfBirthComponents(), let birthDate = Calendar.current.date(from: dob) {
             ageYears = Calendar.current.dateComponents([.year], from: birthDate, to: .now).year
         }
+
+        if let sex = try? store.biologicalSex() {
+            biologicalSex = sex.biologicalSex
+        }
     }
 
     func fetchWeightSamples(daysBack: Int) async -> [(date: Date, kg: Double)] {
@@ -64,6 +72,35 @@ final class HealthKitManager {
                     (date: sample.startDate, kg: sample.quantity.doubleValue(for: .gramUnit(with: .kilo)))
                 } ?? []
                 continuation.resume(returning: points)
+            }
+            store.execute(query)
+        }
+    }
+
+    func fetchDailySteps(daysBack: Int) async -> [(date: Date, steps: Double)] {
+        var results: [(Date, Double)] = []
+        let calendar = Calendar.current
+        for offset in stride(from: daysBack - 1, through: 0, by: -1) {
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: .now) else { continue }
+            let value = await sumForDay(day, type: stepType, unit: .count())
+            results.append((calendar.startOfDay(for: day), value))
+        }
+        return results
+    }
+
+    private func sumForDay(_ day: Date, type: HKQuantityType, unit: HKUnit) async -> Double {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: day)
+        let end = calendar.date(byAdding: .day, value: 1, to: start) ?? day
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end)
+        return await withCheckedContinuation { continuation in
+            let query = HKStatisticsQuery(
+                quantityType: type,
+                quantitySamplePredicate: predicate,
+                options: .cumulativeSum
+            ) { _, result, _ in
+                let value = result?.sumQuantity()?.doubleValue(for: unit) ?? 0
+                continuation.resume(returning: value)
             }
             store.execute(query)
         }

@@ -12,7 +12,7 @@ struct RootView: View {
                 case .workouts:
                     WorkoutsView()
                 case .progress:
-                    PlaceholderView(title: "Progress")
+                    ProgressTrackerView()
                 case .profile:
                     ProfileView()
                 }
