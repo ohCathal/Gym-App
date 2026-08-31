@@ -10,7 +10,7 @@ struct RootView: View {
                 case .macros:
                     ContentView()
                 case .workouts:
-                    PlaceholderView(title: "Workouts")
+                    WorkoutsView()
                 case .progress:
                     PlaceholderView(title: "Progress")
                 case .profile:

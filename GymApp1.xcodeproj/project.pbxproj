@@ -14,7 +14,6 @@
 		DB1C11F13045B32500FC9B2B /* Exceptions for "GymApp1" folder in "GymApp1" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"Untitled 2.swift",
 				Untitled.swift,
 			);
 			target = DBF2B8C12FED8F5700D4EF15 /* GymApp1 */;
