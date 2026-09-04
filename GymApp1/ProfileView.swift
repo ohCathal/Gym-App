@@ -29,19 +29,19 @@ struct ProfileView: View {
     @State private var weightRange: WeightRange = .week
     @State private var weightPoints: [WeightPoint] = []
 
-    // Goals editing
     @State private var calorieText = ""
     @State private var proteinText = ""
     @State private var carbText = ""
     @State private var fatText = ""
 
-    // TDEE inputs
     @State private var tdeeAge: String = ""
     @State private var tdeeHeight: String = ""
     @State private var tdeeWeight: String = ""
     @State private var tdeeSex: BiologicalSexOption = .male
     @State private var tdeeActivity: ActivityLevel = .moderate
     @State private var showTDEEResult = false
+
+    @State private var showingPrivacy = false
 
     private var goals: MacroGoals {
         goalsList.first ?? MacroGoals()
@@ -71,6 +71,29 @@ struct ProfileView: View {
                         goalsCard
                         tdeeCard
 
+                        Button {
+                            showingPrivacy = true
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "lock.shield.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(Color.accentPrimary)
+                                Text("Privacy & Security")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(Color.textPrimary)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Color.textSecondary)
+                            }
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18)
+                                    .fill(Color.bgSurface)
+                                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.06), lineWidth: 1))
+                            )
+                        }
+
                         if let authError = health.authError {
                             Text(authError)
                                 .font(.system(size: 12))
@@ -96,6 +119,9 @@ struct ProfileView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .sheet(isPresented: $showingPrivacy) {
+                PrivacySecurityView()
+            }
             .onAppear {
                 if goalsList.isEmpty { modelContext.insert(MacroGoals()) }
                 loadGoalsText()
@@ -111,8 +137,6 @@ struct ProfileView: View {
             .onChange(of: currentWeight) { _, _ in prefillTDEEFromHealth() }
         }
     }
-
-    // MARK: - Background
 
     private var backgroundLayer: some View {
         ZStack {
@@ -130,8 +154,6 @@ struct ProfileView: View {
         }
     }
 
-    // MARK: - Header
-
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("PROFILE")
@@ -145,8 +167,6 @@ struct ProfileView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 12)
     }
-
-    // MARK: - Activity Card
 
     private var activityCard: some View {
         HStack(spacing: 0) {
@@ -177,8 +197,6 @@ struct ProfileView: View {
         }
         .frame(maxWidth: .infinity)
     }
-
-    // MARK: - Weight Card
 
     private var weightCard: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -244,8 +262,6 @@ struct ProfileView: View {
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.06), lineWidth: 1))
         )
     }
-
-    // MARK: - Goals Card
 
     private var goalsCard: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -325,8 +341,6 @@ struct ProfileView: View {
         }
     }
 
-    // MARK: - TDEE Card
-
     private var tdeeCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
@@ -345,14 +359,12 @@ struct ProfileView: View {
                 tdeeField(label: "Weight", text: $tdeeWeight, unit: "kg")
             }
 
-            HStack(spacing: 10) {
-                Picker("Sex", selection: $tdeeSex) {
-                    ForEach(BiologicalSexOption.allCases, id: \.self) { option in
-                        Text(option.rawValue).tag(option)
-                    }
+            Picker("Sex", selection: $tdeeSex) {
+                ForEach(BiologicalSexOption.allCases, id: \.self) { option in
+                    Text(option.rawValue).tag(option)
                 }
-                .pickerStyle(.segmented)
             }
+            .pickerStyle(.segmented)
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("ACTIVITY LEVEL")
@@ -443,8 +455,6 @@ struct ProfileView: View {
                 .background(RoundedRectangle(cornerRadius: 10).fill(Color.bgPrimary.opacity(0.6)))
         }
     }
-
-    // MARK: - Actions
 
     private func loadGoalsText() {
         calorieText = String(Int(goals.calorieGoal))

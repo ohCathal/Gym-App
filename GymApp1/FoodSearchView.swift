@@ -160,26 +160,14 @@ struct FoodSearchView: View {
         isSearching = true
         errorMessage = nil
 
-        async let usdaTask: [FoodSearchResult] = {
-            do {
-                return try await USDAFoodService.search(query: trimmed)
-            } catch {
-                print("USDA search failed: \(error)")
-                return []
-            }
-        }()
-
-        async let offTask: [FoodSearchResult] = {
-            do {
-                return try await OpenFoodFactsService.search(query: trimmed)
-            } catch {
-                print("Open Food Facts search failed: \(error)")
-                return []
-            }
-        }()
-
-        let combined = await usdaTask + offTask
-        results = combined
+        do {
+            results = try await OpenFoodFactsService.search(query: trimmed)
+        } catch {
+            #if DEBUG
+            print("Open Food Facts search failed: \(error)")
+            #endif
+            errorMessage = "Couldn't reach the food database. Check your connection or add it manually."
+        }
         isSearching = false
     }
 }

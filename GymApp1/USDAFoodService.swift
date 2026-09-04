@@ -1,8 +1,7 @@
 import Foundation
 
 enum USDAFoodService {
-    // Replace with your real key from fdc.nal.usda.gov/api-key-signup.html
-    private static let apiKey = "uuQM5ZL2KPuZBRP9oo0HjHBWRQNxTogoqYzbvazk"
+    private static let apiKey = "US_API_KEY" // no longer wanted so removed it
     private static let baseURL = "https://api.nal.usda.gov/fdc/v1"
 
     static func search(query: String) async throws -> [FoodSearchResult] {

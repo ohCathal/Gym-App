@@ -1,9 +1,3 @@
-//  GymApp1App.swift
-//  GymApp1
-//
-//  Created by Cathal Davitt on 26/06/2026.
-//
-
 import SwiftUI
 import SwiftData
 
@@ -19,15 +13,28 @@ struct GymApp1App: App {
             SetLog.self,
             WeightEntry.self,
             ProgressPhoto.self,
+            UserProfile.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            secureStoreFile(for: modelConfiguration)
+            return container
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()
+
+    /// Applies iOS Data Protection so the local database file is encrypted
+    /// at rest and inaccessible while the device is locked.
+    private static func secureStoreFile(for configuration: ModelConfiguration) {
+        let storeURL = configuration.url
+        try? FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.complete],
+            ofItemAtPath: storeURL.path
+        )
+    }
 
     var body: some Scene {
         WindowGroup {
