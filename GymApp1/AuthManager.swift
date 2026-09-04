@@ -6,17 +6,25 @@ final class AuthManager {
     var isSignedIn = false
     var userID: String?
     var userName: String?
+    var isGuest = false
 
     private let keychainKey = "com.gymapp1.appleUserID"
     private let nameKey = "com.gymapp1.userName"
+    private let guestModeKey = "com.gymapp1.isGuestMode"
 
     init() {
         checkExistingSignIn()
     }
 
-    /// Checks Keychain for a previously signed-in user and verifies
-    /// with Apple that the sign-in is still valid (not revoked).
+    /// Checks for a previously saved guest choice or Apple sign-in,
+    /// and verifies with Apple that a saved sign-in is still valid.
     func checkExistingSignIn() {
+        if UserDefaults.standard.bool(forKey: guestModeKey) {
+            isGuest = true
+            isSignedIn = true
+            return
+        }
+
         guard let savedID = KeychainHelper.read(forKey: keychainKey) else {
             isSignedIn = false
             return
@@ -55,6 +63,7 @@ final class AuthManager {
                 userName = KeychainHelper.read(forKey: nameKey)
             }
 
+            isGuest = false
             isSignedIn = true
 
         case .failure(let error):
@@ -65,14 +74,18 @@ final class AuthManager {
     }
 
     func continueAsGuest() {
+        UserDefaults.standard.set(true, forKey: guestModeKey)
+        isGuest = true
         isSignedIn = true
     }
 
     func signOut() {
         KeychainHelper.delete(forKey: keychainKey)
         KeychainHelper.delete(forKey: nameKey)
+        UserDefaults.standard.removeObject(forKey: guestModeKey)
         userID = nil
         userName = nil
+        isGuest = false
         isSignedIn = false
     }
 }

@@ -23,6 +23,7 @@ struct WeightPoint: Identifiable {
 
 struct ProfileView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(AuthManager.self) private var auth
     @Query private var goalsList: [MacroGoals]
     @State private var health = HealthKitManager()
 
@@ -42,6 +43,7 @@ struct ProfileView: View {
     @State private var showTDEEResult = false
 
     @State private var showingPrivacy = false
+    @State private var showingSignOutConfirm = false
 
     private var goals: MacroGoals {
         goalsList.first ?? MacroGoals()
@@ -70,6 +72,7 @@ struct ProfileView: View {
                         weightCard
                         goalsCard
                         tdeeCard
+                        accountCard
 
                         Button {
                             showingPrivacy = true
@@ -121,6 +124,14 @@ struct ProfileView: View {
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showingPrivacy) {
                 PrivacySecurityView()
+            }
+            .alert("Sign Out", isPresented: $showingSignOutConfirm) {
+                Button("Cancel", role: .cancel) { }
+                Button("Sign Out", role: .destructive) {
+                    auth.signOut()
+                }
+            } message: {
+                Text("You'll be taken back to the sign-in screen. Your data stays saved on this device.")
             }
             .onAppear {
                 if goalsList.isEmpty { modelContext.insert(MacroGoals()) }
@@ -454,6 +465,55 @@ struct ProfileView: View {
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: 10).fill(Color.bgPrimary.opacity(0.6)))
         }
+    }
+
+    private var accountCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("ACCOUNT")
+                .font(.system(size: 11, weight: .semibold))
+                .tracking(0.8)
+                .foregroundStyle(Color.textSecondary)
+
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.accentPrimary.opacity(0.12))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: auth.isGuest ? "person.fill" : "apple.logo")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.accentPrimary)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(auth.isGuest ? "Continuing as Guest" : (auth.userName ?? "Signed in with Apple"))
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Color.textPrimary)
+                    Text(auth.isGuest ? "Data stays on this device only" : "Signed in securely")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.textSecondary)
+                }
+                Spacer()
+            }
+
+            Button {
+                showingSignOutConfirm = true
+            } label: {
+                Text("Sign Out")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.red)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.red.opacity(0.1))
+                    )
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.bgSurface)
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.06), lineWidth: 1))
+        )
     }
 
     private func loadGoalsText() {
