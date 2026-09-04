@@ -2,25 +2,33 @@ import SwiftUI
 
 struct RootView: View {
     @State private var selected: AppTab = .macros
+    @State private var auth = AuthManager()
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Group {
-                switch selected {
-                case .macros:
-                    ContentView()
-                case .workouts:
-                    WorkoutsView()
-                case .progress:
-                    ProgressTrackerView()
-                case .profile:
-                    ProfileView()
-                }
-            }
+        Group {
+            if auth.isSignedIn {
+                ZStack(alignment: .bottom) {
+                    Group {
+                        switch selected {
+                        case .macros:
+                            ContentView()
+                        case .workouts:
+                            WorkoutsView()
+                        case .progress:
+                            ProgressTrackerView()
+                        case .profile:
+                            ProfileView()
+                        }
+                    }
 
-            FloatingTabBar(selected: $selected)
-                .padding(.bottom, 12)
+                    FloatingTabBar(selected: $selected)
+                        .padding(.bottom, 12)
+                }
+            } else {
+                SignInView(auth: auth)
+            }
         }
+        .environment(auth)
         .preferredColorScheme(.dark)
     }
 }
