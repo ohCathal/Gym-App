@@ -1,0 +1,17 @@
+# Xcode
+.DS_Store
+build/
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.xcuserdatad
+.swiftpm/
+
+# CocoaPods (not currently used, but safe to ignore)
+Pods/
+
+# Secrets (never commit real keys)
+Secrets.xcconfig
