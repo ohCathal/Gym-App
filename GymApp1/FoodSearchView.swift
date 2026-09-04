@@ -3,6 +3,7 @@ import SwiftData
 
 struct FoodSearchView: View {
     @Environment(\.dismiss) private var dismiss
+    var logDate: Date = .now
 
     @State private var query = ""
     @State private var results: [FoodSearchResult] = []
@@ -97,7 +98,7 @@ struct FoodSearchView: View {
                 }
 
                 NavigationLink {
-                    ManualFoodEntryView(onSaved: { dismiss() })
+                    ManualFoodEntryView(logDate: logDate, onSaved: { dismiss() })
                 } label: {
                     Text("Can't find it? Add manually")
                         .font(.system(size: 13, weight: .medium))
@@ -116,7 +117,7 @@ struct FoodSearchView: View {
                 await runSearch()
             }
             .sheet(item: $selected) { result in
-                QuantityEntryView(result: result, onSaved: {
+                QuantityEntryView(result: result, logDate: logDate, onSaved: {
                     selected = nil
                     query = ""
                     results = []
@@ -187,6 +188,7 @@ struct QuantityEntryView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     let result: FoodSearchResult
+    var logDate: Date = .now
     var onSaved: () -> Void
 
     @State private var grams: Double = 100
@@ -303,6 +305,7 @@ struct QuantityEntryView: View {
             protein: result.proteinPer100g * scale,
             carbs: result.carbsPer100g * scale,
             fat: result.fatPer100g * scale,
+            timestamp: logDate,
             grams: grams
         )
         modelContext.insert(entry)

@@ -5,6 +5,7 @@ struct ManualFoodEntryView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     var existingEntry: FoodEntry?
+    var logDate: Date = .now
     var onSaved: () -> Void = {}
 
     @State private var name = ""
@@ -173,6 +174,7 @@ struct ManualFoodEntryView: View {
                 protein: Double(protein) ?? 0,
                 carbs: Double(carbs) ?? 0,
                 fat: Double(fat) ?? 0,
+                timestamp: logDate,
                 grams: grams
             )
             modelContext.insert(entry)

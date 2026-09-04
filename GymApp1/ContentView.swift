@@ -8,13 +8,19 @@ struct ContentView: View {
 
     @State private var showingSearch = false
     @State private var editingEntry: FoodEntry?
+    @State private var selectedDate: Date = Date()
+    @State private var showingDatePicker = false
 
     private var goals: MacroGoals {
         goalsList.first ?? MacroGoals()
     }
 
+    private var isToday: Bool {
+        Calendar.current.isDateInToday(selectedDate)
+    }
+
     private var todayEntries: [FoodEntry] {
-        allEntries.filter { Calendar.current.isDateInToday($0.timestamp) }
+        allEntries.filter { Calendar.current.isDate($0.timestamp, inSameDayAs: selectedDate) }
     }
 
     private var totalCalories: Double { todayEntries.reduce(0) { $0 + $1.calories } }
@@ -31,10 +37,10 @@ struct ContentView: View {
         }
     }
 
-    private var todayDateString: String {
+    private var dateHeaderString: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMM d"
-        return formatter.string(from: .now)
+        return formatter.string(from: selectedDate)
     }
 
     // MARK: - Recommendations
@@ -44,9 +50,8 @@ struct ContentView: View {
         let currentHour = calendar.component(.hour, from: .now)
         let loggedTodayNames = Set(todayEntries.map { $0.name })
 
-        let pastEntries = allEntries.filter { !calendar.isDateInToday($0.timestamp) }
+        let pastEntries = allEntries.filter { !calendar.isDate($0.timestamp, inSameDayAs: selectedDate) }
 
-        // Prefer foods logged around this same time of day, on other days
         let timeMatched = pastEntries.filter { entry in
             let hour = calendar.component(.hour, from: entry.timestamp)
             return abs(hour - currentHour) <= 2
@@ -80,7 +85,7 @@ struct ContentView: View {
                             logSection
                         }
 
-                        if !recommendedEntries.isEmpty {
+                        if isToday && !recommendedEntries.isEmpty {
                             recommendedSection
                         }
                     }
@@ -91,7 +96,7 @@ struct ContentView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showingSearch) {
-                FoodSearchView()
+                FoodSearchView(logDate: selectedDate)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
                     .presentationBackgroundInteraction(.enabled(upThrough: .medium))
@@ -100,6 +105,31 @@ struct ContentView: View {
                 NavigationStack {
                     ManualFoodEntryView(existingEntry: entry, onSaved: { editingEntry = nil })
                 }
+            }
+            .sheet(isPresented: $showingDatePicker) {
+                NavigationStack {
+                    DatePicker(
+                        "",
+                        selection: $selectedDate,
+                        in: ...Date(),
+                        displayedComponents: .date
+                    )
+                    .datePickerStyle(.graphical)
+                    .tint(Color.accentPrimary)
+                    .padding()
+                    .background(Color.bgPrimary.ignoresSafeArea())
+                    .navigationTitle("Select Day")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbarColorScheme(.dark, for: .navigationBar)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showingDatePicker = false }
+                                .foregroundStyle(Color.accentPrimary)
+                        }
+                    }
+                }
+                .presentationDetents([.medium])
+                .preferredColorScheme(.dark)
             }
             .onAppear {
                 if goalsList.isEmpty {
@@ -138,16 +168,61 @@ struct ContentView: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(greeting.uppercased())
-                .font(.system(size: 11, weight: .semibold))
-                .tracking(1.2)
-                .foregroundStyle(Color.accentPrimary)
-            Text(todayDateString)
-                .font(.system(size: 30, weight: .semibold, design: .serif))
-                .foregroundStyle(Color.textPrimary)
+        VStack(spacing: 6) {
+            HStack(spacing: 10) {
+                Button {
+                    withAnimation { selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate }
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.textSecondary)
+                        .frame(width: 30, height: 30)
+                        .background(Circle().fill(Color.bgSurface))
+                }
+
+                VStack(spacing: 2) {
+                    Text((isToday ? greeting : "Viewing").uppercased())
+                        .font(.system(size: 11, weight: .semibold))
+                        .tracking(1.2)
+                        .foregroundStyle(Color.accentPrimary)
+                    Button {
+                        showingDatePicker = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(dateHeaderString)
+                                .font(.system(size: 22, weight: .semibold, design: .serif))
+                                .foregroundStyle(Color.textPrimary)
+                            Image(systemName: "calendar")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+
+                Button {
+                    withAnimation { selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate }
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(isToday ? Color.textSecondary.opacity(0.25) : Color.textSecondary)
+                        .frame(width: 30, height: 30)
+                        .background(Circle().fill(Color.bgSurface))
+                }
+                .disabled(isToday)
+            }
+
+            if !isToday {
+                Button {
+                    withAnimation { selectedDate = Date() }
+                } label: {
+                    Text("Jump to Today")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.accentPrimary)
+                }
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
         .padding(.top, 12)
     }
 
@@ -211,7 +286,7 @@ struct ContentView: View {
 
     private func macroPill(icon: String, title: String, value: Double, goal: Double, color: Color) -> some View {
         let progress = min(max(goal > 0 ? value / goal : 0, 0), 1)
-        return VStack(spacing: 8) {
+        return VStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 13))
                 .foregroundStyle(color)
@@ -233,8 +308,11 @@ struct ContentView: View {
                     }
                 }
                 .frame(height: 4)
+                .padding(.horizontal, 4)
         }
-        .padding(.vertical, 14)
+        .padding(.top, 14)
+        .padding(.bottom, 16)
+        .padding(.horizontal, 4)
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 16)
@@ -249,10 +327,10 @@ struct ContentView: View {
             Image(systemName: "fork.knife.circle")
                 .font(.system(size: 34))
                 .foregroundStyle(Color.textSecondary.opacity(0.5))
-            Text("Nothing logged yet")
+            Text(isToday ? "Nothing logged yet" : "No entries this day")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(Color.textPrimary)
-            Text("Tap the ring above to log your first meal today")
+            Text(isToday ? "Tap the ring above to log your first meal today" : "Tap the ring above to add something for this day")
                 .font(.system(size: 12))
                 .foregroundStyle(Color.textSecondary)
                 .multilineTextAlignment(.center)
@@ -265,7 +343,7 @@ struct ContentView: View {
 
     private var logSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("TODAY'S LOG")
+            Text(isToday ? "TODAY'S LOG" : "LOG")
                 .font(.system(size: 12, weight: .semibold))
                 .tracking(0.8)
                 .foregroundStyle(Color.textSecondary)
@@ -400,7 +478,8 @@ struct ContentView: View {
             calories: source.calories,
             protein: source.protein,
             carbs: source.carbs,
-            fat: source.fat
+            fat: source.fat,
+            timestamp: selectedDate
         )
         modelContext.insert(entry)
     }
