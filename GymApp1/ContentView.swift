@@ -43,6 +43,30 @@ struct ContentView: View {
         return formatter.string(from: selectedDate)
     }
 
+    // MARK: - Streak
+
+    private var currentStreak: Int {
+        let calendar = Calendar.current
+        let loggedDays = Set(allEntries.map { calendar.startOfDay(for: $0.timestamp) })
+        var day = calendar.startOfDay(for: .now)
+
+        if !loggedDays.contains(day) {
+            guard let yesterday = calendar.date(byAdding: .day, value: -1, to: day),
+                  loggedDays.contains(yesterday) else {
+                return 0
+            }
+            day = yesterday
+        }
+
+        var streak = 0
+        while loggedDays.contains(day) {
+            streak += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: day) else { break }
+            day = previous
+        }
+        return streak
+    }
+
     // MARK: - Recommendations
 
     private var recommendedEntries: [FoodEntry] {
@@ -210,6 +234,19 @@ struct ContentView: View {
                         .background(Circle().fill(Color.bgSurface))
                 }
                 .disabled(isToday)
+            }
+
+            if currentStreak > 0 {
+                HStack(spacing: 5) {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 11))
+                    Text("\(currentStreak) day streak")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(Color.accentFat)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(Color.accentFat.opacity(0.12)))
             }
 
             if !isToday {
