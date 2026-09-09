@@ -73,6 +73,28 @@ struct ContentView: View {
         return streak
     }
 
+    // MARK: - Week Overview
+
+    private struct DayMarker: Identifiable {
+        let id = UUID()
+        let date: Date
+        let calories: Double
+        let hasData: Bool
+        let goalMet: Bool
+    }
+
+    private var weekOverview: [DayMarker] {
+        let calendar = Calendar.current
+        return (0..<7).reversed().compactMap { offset -> DayMarker? in
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: .now) else { return nil }
+            let dayEntries = allEntries.filter { calendar.isDate($0.timestamp, inSameDayAs: day) }
+            let total = dayEntries.reduce(0) { $0 + $1.calories }
+            let hasData = !dayEntries.isEmpty
+            let goalMet = hasData && goals.calorieGoal > 0 && abs(total - goals.calorieGoal) / goals.calorieGoal <= 0.15
+            return DayMarker(date: calendar.startOfDay(for: day), calories: total, hasData: hasData, goalMet: goalMet)
+        }
+    }
+
     // MARK: - Recommendations
 
     private var recommendedEntries: [FoodEntry] {
@@ -106,6 +128,8 @@ struct ContentView: View {
                 ScrollView {
                     VStack(spacing: 24) {
                         header
+
+                        weekStrip
 
                         gaugeCard
 
@@ -267,6 +291,52 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 12)
+    }
+
+    // MARK: - Week Strip
+
+    private var weekStrip: some View {
+        HStack(spacing: 0) {
+            ForEach(weekOverview) { day in
+                let isSelected = Calendar.current.isDate(day.date, inSameDayAs: selectedDate)
+                Button {
+                    withAnimation { selectedDate = day.date }
+                } label: {
+                    VStack(spacing: 6) {
+                        Text(dayLetter(day.date))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.textSecondary)
+
+                        Circle()
+                            .fill(dotColor(for: day))
+                            .frame(width: 10, height: 10)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.accentPrimary, lineWidth: isSelected ? 2 : 0)
+                                    .frame(width: 18, height: 18)
+                            )
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.bgSurface.opacity(0.5))
+        )
+    }
+
+    private func dayLetter(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "E"
+        return String(formatter.string(from: date).prefix(1))
+    }
+
+    private func dotColor(for day: DayMarker) -> Color {
+        if !day.hasData { return Color.textSecondary.opacity(0.2) }
+        return day.goalMet ? Color.accentPrimary : Color.accentFat.opacity(0.6)
     }
 
     // MARK: - Gauge Card
