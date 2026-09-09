@@ -23,6 +23,12 @@ struct ContentView: View {
         allEntries.filter { Calendar.current.isDate($0.timestamp, inSameDayAs: selectedDate) }
     }
 
+    private var yesterdayEntries: [FoodEntry] {
+        let calendar = Calendar.current
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: selectedDate) else { return [] }
+        return allEntries.filter { calendar.isDate($0.timestamp, inSameDayAs: yesterday) }
+    }
+
     private var totalCalories: Double { todayEntries.reduce(0) { $0 + $1.calories } }
     private var totalProtein: Double { todayEntries.reduce(0) { $0 + $1.protein } }
     private var totalCarbs: Double { todayEntries.reduce(0) { $0 + $1.carbs } }
@@ -360,7 +366,7 @@ struct ContentView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 14) {
             Image(systemName: "fork.knife.circle")
                 .font(.system(size: 34))
                 .foregroundStyle(Color.textSecondary.opacity(0.5))
@@ -371,6 +377,25 @@ struct ContentView: View {
                 .font(.system(size: 12))
                 .foregroundStyle(Color.textSecondary)
                 .multilineTextAlignment(.center)
+
+            if isToday && !yesterdayEntries.isEmpty {
+                Button {
+                    copyYesterday()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.uturn.backward.circle.fill")
+                        Text("Copy Yesterday's Log")
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.accentPrimary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        Capsule().fill(Color.accentPrimary.opacity(0.12))
+                    )
+                }
+                .padding(.top, 6)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
@@ -519,6 +544,21 @@ struct ContentView: View {
             timestamp: selectedDate
         )
         modelContext.insert(entry)
+    }
+
+    private func copyYesterday() {
+        for source in yesterdayEntries {
+            let copy = FoodEntry(
+                name: source.name,
+                calories: source.calories,
+                protein: source.protein,
+                carbs: source.carbs,
+                fat: source.fat,
+                timestamp: selectedDate,
+                grams: source.grams
+            )
+            modelContext.insert(copy)
+        }
     }
 }
 
